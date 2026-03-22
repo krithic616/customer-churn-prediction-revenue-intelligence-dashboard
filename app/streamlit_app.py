@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 import plotly.express as px
+import plotly.graph_objects as go
 import time
 
 st.set_page_config(page_title="Customer Churn Intelligence", layout="wide")
@@ -59,25 +60,6 @@ st.markdown("""
 st.markdown('<div class="title">Customer Churn Prediction & Revenue Intelligence Dashboard</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Predict churn, analyze revenue risk, generate insights and actions</div>', unsafe_allow_html=True)
 
-# ================= DATA REQUIREMENTS =================
-st.markdown("""
-<div class="data-box" style="background: linear-gradient(135deg, #3b82f6, #1e3a8a);">
-<h4>📊 Data Requirements</h4>
-Provide a valid customer dataset to generate churn predictions and revenue intelligence.
-<br><br>
-<b>Required fields:</b>
-<ul>
-<li>customer_id</li>
-<li>age</li>
-<li>tenure</li>
-<li>monthly_charges</li>
-<li>contract_type</li>
-<li>payment_method</li>
-</ul>
-⚠️ CSV format required • Column names must match exactly
-</div>
-""", unsafe_allow_html=True)
-
 # ================= LOAD =================
 @st.cache_data
 def load_data():
@@ -94,22 +76,49 @@ model_columns = joblib.load("model/columns.pkl")
 st.sidebar.header("Filters")
 uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
 
-# ================= DATA LOAD =================
-if uploaded_file:
-    with st.spinner("Processing dataset... Please wait"):
-        progress = st.progress(0)
-        for i in range(1, 101):
-            time.sleep(0.01)
-            progress.progress(i)
-        df = pd.read_csv(uploaded_file)
+# ================= DATA LOGIC =================
+if uploaded_file is not None:
+    try:
+        with st.spinner("Processing dataset..."):
+            progress = st.progress(0)
+            for i in range(100):
+                time.sleep(0.01)
+                progress.progress(i + 1)
 
-    st.success("Custom dataset loaded successfully.")
+            df = pd.read_csv(uploaded_file)
+
+        st.success("Custom dataset loaded successfully.")
+
+    except:
+        st.error("Invalid CSV file. Please upload a correct file.")
+        st.stop()
+
 else:
     df = load_data()
+
+    # SHOW ONLY WHEN NO FILE
+    st.markdown("""
+    <div class="data-box" style="background: linear-gradient(135deg, #3b82f6, #1e3a8a);">
+    <h4>📊 Data Requirements</h4>
+    Provide a valid customer dataset to generate churn predictions and revenue intelligence.
+    <br><br>
+    <b>Required fields:</b>
+    <ul>
+    <li>customer_id</li>
+    <li>age</li>
+    <li>tenure</li>
+    <li>monthly_charges</li>
+    <li>contract_type</li>
+    <li>payment_method</li>
+    </ul>
+    ⚠️ CSV format required • Column names must match exactly
+    </div>
+    """, unsafe_allow_html=True)
+
     st.markdown("""
     <div class="data-box" style="background: linear-gradient(135deg, #2563eb, #1e40af);">
     📊 <b>Demo Mode</b><br>
-    Showing sample dataset. Upload your own dataset to generate personalized churn insights and revenue intelligence.
+    Showing sample dataset.
     </div>
     """, unsafe_allow_html=True)
 
@@ -138,7 +147,7 @@ if search_id:
     df = df[df["customer_id"].astype(str).str.contains(search_id)]
 
 # ================= MODEL =================
-with st.spinner("Running AI churn prediction engine..."):
+with st.spinner("Running AI engine..."):
     X = df.drop(["churn", "customer_id"], axis=1)
     X = pd.get_dummies(X)
 
@@ -163,83 +172,71 @@ df["Risk_Category"] = df["Churn_Probability"].apply(risk_category)
 # ================= KPI =================
 st.markdown('<div class="section">Executive Overview</div>', unsafe_allow_html=True)
 
-total_customers = len(df)
-avg_churn = df["Churn_Probability"].mean()
-total_risk = df["Revenue_Risk"].sum()
-
 col1, col2, col3 = st.columns(3)
 
-col1.markdown(f"<div class='metric-card kpi-customers'><h3>Total Customers</h3><h2>{total_customers}</h2></div>", unsafe_allow_html=True)
-col2.markdown(f"<div class='metric-card kpi-churn'><h3>Avg Churn</h3><h2>{round(avg_churn,2)}</h2></div>", unsafe_allow_html=True)
-col3.markdown(f"<div class='metric-card kpi-revenue'><h3>Revenue Risk</h3><h2>₹{int(total_risk)}</h2></div>", unsafe_allow_html=True)
+col1.markdown(f"<div class='metric-card kpi-customers'><h3>Total Customers</h3><h2>{len(df)}</h2></div>", unsafe_allow_html=True)
+col2.markdown(f"<div class='metric-card kpi-churn'><h3>Avg Churn</h3><h2>{round(df['Churn_Probability'].mean(),2)}</h2></div>", unsafe_allow_html=True)
+col3.markdown(f"<div class='metric-card kpi-revenue'><h3>Revenue Risk</h3><h2>₹{int(df['Revenue_Risk'].sum())}</h2></div>", unsafe_allow_html=True)
 
 # ================= ALERT =================
-high_risk_count = df[df["Risk_Category"] == "High Risk"].shape[0]
+high_risk = df[df["Risk_Category"] == "High Risk"].shape[0]
 
 st.markdown(f"""
 <div style="margin-top:20px;padding:18px;border-radius:14px;text-align:center;
 background:#065f46;color:#d1fae5;font-weight:600;">
-Customer base stable | High Risk Customers: {high_risk_count}
+Customer base stable | High Risk Customers: {high_risk}
 </div>
 """, unsafe_allow_html=True)
 
-# ================= AI INSIGHTS =================
+# ================= INSIGHTS =================
 st.markdown('<div class="section">AI Insights Engine</div>', unsafe_allow_html=True)
 
-insights = []
-insights.append(f"{df.groupby('contract_type')['Revenue_Risk'].sum().idxmax()} contracts contribute highest revenue risk.")
-insights.append(f"{df.groupby('payment_method')['Revenue_Risk'].sum().idxmax()} users show highest revenue exposure.")
-
-top_20 = df.nlargest(int(0.2 * len(df)), "Revenue_Risk")["Revenue_Risk"].sum()
-total = df["Revenue_Risk"].sum()
-insights.append(f"Top 20% customers contribute {int((top_20/total)*100)}% of revenue risk.")
-
-low_tenure = df[df["tenure"] < 6].shape[0]
-insights.append(f"{low_tenure} low-tenure customers are major churn drivers.")
-
-for i in insights:
-    st.info(i)
-
-# ================= ACTION CENTER =================
-st.markdown('<div class="section">Recommended Actions</div>', unsafe_allow_html=True)
-
-actions = []
-actions.append(f"Convert {df[(df['Risk_Category']=='High Risk') & (df['contract_type']=='Monthly')].shape[0]} high-risk monthly users to yearly plans.")
-actions.append(f"Launch onboarding program for {df[df['tenure']<6].shape[0]} new customers.")
-actions.append(f"Offer pricing optimization or discounts to {df[df['monthly_charges']>df['monthly_charges'].mean()].shape[0]} high-charge users.")
-actions.append(f"Immediate retention campaign for {df[df['Churn_Probability']>0.7].shape[0]} critical-risk customers.")
-
-for a in actions:
-    st.success(a)
+st.info(f"{df.groupby('contract_type')['Revenue_Risk'].sum().idxmax()} contracts drive highest revenue risk.")
+st.info(f"{df.groupby('payment_method')['Revenue_Risk'].sum().idxmax()} payment users have highest exposure.")
 
 # ================= CHARTS =================
 st.markdown('<div class="section">Analytics Dashboard</div>', unsafe_allow_html=True)
 
 col4, col5 = st.columns(2)
 
-col4.plotly_chart(px.histogram(df, x="Churn_Probability", template="plotly_dark"), use_container_width=True)
-
-col5.plotly_chart(
-    px.bar(
-        df.groupby("Risk_Category")["Revenue_Risk"].sum().reset_index(),
-        x="Risk_Category",
-        y="Revenue_Risk",
-        color="Risk_Category",
-        template="plotly_dark"
-    ),
-    use_container_width=True
+fig1 = px.histogram(
+    df,
+    x="Churn_Probability",
+    nbins=30,
+    color_discrete_sequence=["#3b82f6"]
+)
+fig1.update_layout(
+    plot_bgcolor="#020617",
+    paper_bgcolor="#020617",
+    font_color="white"
 )
 
-# ================= TABLES =================
+fig2 = px.bar(
+    df.groupby("Risk_Category")["Revenue_Risk"].sum().reset_index(),
+    x="Risk_Category",
+    y="Revenue_Risk",
+    color="Risk_Category",
+    color_discrete_map={
+        "High Risk": "#ef4444",
+        "Medium Risk": "#f97316",
+        "Low Risk": "#22c55e"
+    }
+)
+fig2.update_layout(
+    plot_bgcolor="#020617",
+    paper_bgcolor="#020617",
+    font_color="white"
+)
+
+col4.plotly_chart(fig1, use_container_width=True)
+col5.plotly_chart(fig2, use_container_width=True)
+
+# ================= TABLE =================
 st.markdown('<div class="section">Customer Intelligence Tables</div>', unsafe_allow_html=True)
 
-st.subheader("Top High Risk Customers")
 st.dataframe(df.sort_values(by="Revenue_Risk", ascending=False).head(10))
 
-st.subheader("Customer Data")
-st.dataframe(df.head(100))
-
-# ================= LIVE PREDICTION =================
+# ================= PREDICT =================
 st.markdown('<div class="section">Live Prediction Engine</div>', unsafe_allow_html=True)
 
 with st.form("predict"):
@@ -272,8 +269,8 @@ with st.form("predict"):
         prob = model.predict_proba(input_df)[0][1]
 
         if prob > 0.7:
-            st.error(f"High Risk Customer | Probability: {round(prob,2)}")
+            st.error(f"High Risk | {round(prob,2)}")
         elif prob > 0.4:
-            st.warning(f"Medium Risk Customer | Probability: {round(prob,2)}")
+            st.warning(f"Medium Risk | {round(prob,2)}")
         else:
-            st.success(f"Low Risk Customer | Probability: {round(prob,2)}")
+            st.success(f"Low Risk | {round(prob,2)}")
