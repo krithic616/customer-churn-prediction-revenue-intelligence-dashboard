@@ -53,8 +53,9 @@ if uploaded_file is not None:
 else:
     df = load_data()
 
-# ================= DATA REQUIREMENTS =================
+# ================= DATA REQUIREMENTS + DEMO MODE =================
 if uploaded_file is None:
+
     st.markdown("""
     <div class="data-box" style="background: linear-gradient(135deg,#3b82f6,#1e3a8a);">
     <h4>📊 Data Requirements</h4>
@@ -70,6 +71,13 @@ if uploaded_file is None:
     </div>
     """, unsafe_allow_html=True)
 
+    st.markdown("""
+    <div class="data-box" style="background: linear-gradient(135deg,#2563eb,#1e40af);">
+    📊 <b>Demo Mode</b><br>
+    Showing sample dataset. Upload your own CSV to unlock real insights.
+    </div>
+    """, unsafe_allow_html=True)
+
 # ================= VALIDATION =================
 required_cols = ["customer_id","age","tenure","monthly_charges","contract_type","payment_method"]
 
@@ -82,8 +90,18 @@ if "churn" not in df.columns:
     df["churn"] = 0
 
 # ================= FILTERS =================
-contract_filter = st.sidebar.multiselect("Contract Type", df["contract_type"].unique(), default=df["contract_type"].unique())
-payment_filter = st.sidebar.multiselect("Payment Method", df["payment_method"].unique(), default=df["payment_method"].unique())
+contract_filter = st.sidebar.multiselect(
+    "Contract Type",
+    df["contract_type"].unique(),
+    default=df["contract_type"].unique()
+)
+
+payment_filter = st.sidebar.multiselect(
+    "Payment Method",
+    df["payment_method"].unique(),
+    default=df["payment_method"].unique()
+)
+
 search_id = st.sidebar.text_input("Search Customer ID")
 
 df = df[
