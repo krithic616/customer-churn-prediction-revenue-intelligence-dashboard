@@ -11,4 +11,4 @@ df = create_features(df)
 print("Step 3: Training model...")
 train_model(df)
 
-print("✅ Pipeline completed successfully!")
+print("Pipeline completed successfully!")
