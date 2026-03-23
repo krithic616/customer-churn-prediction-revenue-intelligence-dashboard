@@ -73,7 +73,7 @@ if uploaded_file is None:
     st.markdown("""
     <div class="data-box" style="background: linear-gradient(135deg,#2563eb,#1e40af);">
     📊 <b>Demo Mode</b><br>
-    Showing sample dataset. Upload your own CSV to unlock real insights.
+    Showing sample dataset.
     </div>
     """, unsafe_allow_html=True)
 
@@ -114,14 +114,7 @@ X = X[model_columns]
 df["Churn_Probability"] = model.predict_proba(X)[:,1]
 df["Revenue_Risk"] = df["Churn_Probability"] * df["monthly_charges"]
 
-def risk_category(p):
-    if p > 0.7: return "High Risk"
-    elif p > 0.4: return "Medium Risk"
-    return "Low Risk"
-
-df["Risk_Category"] = df["Churn_Probability"].apply(risk_category)
-
-# ================= CHURN REASON ENGINE =================
+# ================= CHURN REASON =================
 def churn_reason(row):
     if row["tenure"] < 6:
         return "New Customer Drop-off"
@@ -129,10 +122,8 @@ def churn_reason(row):
         return "High Cost Sensitivity"
     elif row["contract_type"] == "Monthly":
         return "Low Commitment Plan"
-    elif "electronic" in row["payment_method"].lower():
-        return "Payment Friction"
     else:
-        return "General Behavioral Risk"
+        return "Behavioral Risk"
 
 df["Churn_Reason"] = df.apply(churn_reason, axis=1)
 
@@ -161,22 +152,20 @@ for i in insights:
 st.markdown('<div class="section">Recommended Actions</div>', unsafe_allow_html=True)
 
 actions = [
-    f"Convert {df[(df['Risk_Category']=='High Risk') & (df['contract_type']=='Monthly')].shape[0]} users to yearly plans.",
-    f"Onboard {df[df['tenure']<6].shape[0]} new customers better.",
-    f"Target {df[df['monthly_charges']>df['monthly_charges'].mean()].shape[0]} high-paying users.",
+    f"Convert {df[(df['contract_type']=='Monthly')].shape[0]} monthly users to yearly plans.",
+    f"Improve onboarding for {df[df['tenure']<6].shape[0]} users.",
+    f"Offer retention discounts to {df[df['monthly_charges']>df['monthly_charges'].mean()].shape[0]} users.",
     f"Immediate retention for {df[df['Churn_Probability']>0.7].shape[0]} users."
 ]
 
 for a in actions:
     st.success(a)
 
-# ================= REPORT DOWNLOAD =================
+# ================= DOWNLOAD =================
 st.markdown('<div class="section">Executive Report</div>', unsafe_allow_html=True)
 
-report = df[["customer_id","Churn_Probability","Revenue_Risk","Risk_Category","Churn_Reason"]]
-csv = report.to_csv(index=False)
-
-st.download_button("Download Executive Report", csv, "churn_report.csv")
+report = df[["customer_id","Churn_Probability","Revenue_Risk","Churn_Reason"]]
+st.download_button("Download Insights Report", report.to_csv(index=False), "churn_report.csv")
 
 # ================= CHARTS =================
 st.markdown('<div class="section">Analytics Dashboard</div>', unsafe_allow_html=True)
@@ -186,10 +175,9 @@ col4,col5 = st.columns(2)
 col4.plotly_chart(px.histogram(df, x="Churn_Probability", nbins=40, color_discrete_sequence=["#3b82f6"]), use_container_width=True)
 
 col5.plotly_chart(
-    px.bar(df.groupby("Risk_Category")["Revenue_Risk"].sum().reset_index(),
-           x="Risk_Category", y="Revenue_Risk",
-           color="Risk_Category",
-           color_discrete_map={"High Risk":"#ef4444","Medium Risk":"#f59e0b","Low Risk":"#22c55e"}),
+    px.bar(df.groupby("contract_type")["Revenue_Risk"].sum().reset_index(),
+           x="contract_type", y="Revenue_Risk",
+           color="contract_type"),
     use_container_width=True
 )
 
@@ -198,7 +186,7 @@ st.markdown('<div class="section">Customer Intelligence Tables</div>', unsafe_al
 
 st.subheader("Top High Risk Customers")
 st.dataframe(df.sort_values("Revenue_Risk", ascending=False)[
-    ["customer_id","Revenue_Risk","Risk_Category","Churn_Reason"]
+    ["customer_id","Revenue_Risk","Churn_Probability","Churn_Reason"]
 ].head(10))
 
 st.subheader("Full Customer Data")
@@ -207,7 +195,7 @@ st.dataframe(df.head(100))
 # ================= LIVE PREDICTION =================
 st.markdown('<div class="section">Live Prediction Engine</div>', unsafe_allow_html=True)
 
-with st.form("predict_form"):
+with st.form("predict"):
     age = st.number_input("Age", 18, 80, 30)
     tenure = st.number_input("Tenure", 1, 72, 12)
     monthly = st.number_input("Monthly Charges", 100.0, 10000.0, 2000.0)
@@ -237,8 +225,8 @@ with st.form("predict_form"):
         prob = model.predict_proba(input_df)[0][1]
 
         if prob > 0.7:
-            st.error(f"High Risk | Probability: {round(prob,2)}")
+            st.error(f"High Risk | {round(prob,2)}")
         elif prob > 0.4:
-            st.warning(f"Medium Risk | Probability: {round(prob,2)}")
+            st.warning(f"Medium Risk | {round(prob,2)}")
         else:
-            st.success(f"Low Risk | Probability: {round(prob,2)}")
+            st.success(f"Low Risk | {round(prob,2)}")
