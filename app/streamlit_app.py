@@ -53,9 +53,8 @@ if uploaded_file is not None:
 else:
     df = load_data()
 
-# ================= DATA REQUIREMENTS + DEMO MODE =================
+# ================= DATA REQUIREMENTS + DEMO =================
 if uploaded_file is None:
-
     st.markdown("""
     <div class="data-box" style="background: linear-gradient(135deg,#3b82f6,#1e3a8a);">
     <h4>📊 Data Requirements</h4>
@@ -90,18 +89,8 @@ if "churn" not in df.columns:
     df["churn"] = 0
 
 # ================= FILTERS =================
-contract_filter = st.sidebar.multiselect(
-    "Contract Type",
-    df["contract_type"].unique(),
-    default=df["contract_type"].unique()
-)
-
-payment_filter = st.sidebar.multiselect(
-    "Payment Method",
-    df["payment_method"].unique(),
-    default=df["payment_method"].unique()
-)
-
+contract_filter = st.sidebar.multiselect("Contract Type", df["contract_type"].unique(), default=df["contract_type"].unique())
+payment_filter = st.sidebar.multiselect("Payment Method", df["payment_method"].unique(), default=df["payment_method"].unique())
 search_id = st.sidebar.text_input("Search Customer ID")
 
 df = df[
@@ -132,11 +121,25 @@ def risk_category(p):
 
 df["Risk_Category"] = df["Churn_Probability"].apply(risk_category)
 
+# ================= CHURN REASON ENGINE =================
+def churn_reason(row):
+    if row["tenure"] < 6:
+        return "New Customer Drop-off"
+    elif row["monthly_charges"] > df["monthly_charges"].mean():
+        return "High Cost Sensitivity"
+    elif row["contract_type"] == "Monthly":
+        return "Low Commitment Plan"
+    elif "electronic" in row["payment_method"].lower():
+        return "Payment Friction"
+    else:
+        return "General Behavioral Risk"
+
+df["Churn_Reason"] = df.apply(churn_reason, axis=1)
+
 # ================= KPI =================
 st.markdown('<div class="section">Executive Overview</div>', unsafe_allow_html=True)
 
 col1,col2,col3 = st.columns(3)
-
 col1.markdown(f"<div class='metric-card kpi-customers'><h3>Total Customers</h3><h2>{len(df)}</h2></div>", unsafe_allow_html=True)
 col2.markdown(f"<div class='metric-card kpi-churn'><h3>Avg Churn</h3><h2>{round(df['Churn_Probability'].mean(),2)}</h2></div>", unsafe_allow_html=True)
 col3.markdown(f"<div class='metric-card kpi-revenue'><h3>Revenue Risk</h3><h2>₹{int(df['Revenue_Risk'].sum())}</h2></div>", unsafe_allow_html=True)
@@ -167,6 +170,14 @@ actions = [
 for a in actions:
     st.success(a)
 
+# ================= REPORT DOWNLOAD =================
+st.markdown('<div class="section">Executive Report</div>', unsafe_allow_html=True)
+
+report = df[["customer_id","Churn_Probability","Revenue_Risk","Risk_Category","Churn_Reason"]]
+csv = report.to_csv(index=False)
+
+st.download_button("Download Executive Report", csv, "churn_report.csv")
+
 # ================= CHARTS =================
 st.markdown('<div class="section">Analytics Dashboard</div>', unsafe_allow_html=True)
 
@@ -186,7 +197,9 @@ col5.plotly_chart(
 st.markdown('<div class="section">Customer Intelligence Tables</div>', unsafe_allow_html=True)
 
 st.subheader("Top High Risk Customers")
-st.dataframe(df.sort_values("Revenue_Risk", ascending=False).head(10))
+st.dataframe(df.sort_values("Revenue_Risk", ascending=False)[
+    ["customer_id","Revenue_Risk","Risk_Category","Churn_Reason"]
+].head(10))
 
 st.subheader("Full Customer Data")
 st.dataframe(df.head(100))
