@@ -73,7 +73,7 @@ if uploaded_file is None:
     st.markdown("""
     <div class="data-box" style="background: linear-gradient(135deg,#2563eb,#1e40af);">
     📊 <b>Demo Mode</b><br>
-    Showing sample dataset.
+    Showing sample dataset. Upload your own CSV to unlock real insights.
     </div>
     """, unsafe_allow_html=True)
 
@@ -89,8 +89,18 @@ if "churn" not in df.columns:
     df["churn"] = 0
 
 # ================= FILTERS =================
-contract_filter = st.sidebar.multiselect("Contract Type", df["contract_type"].unique(), default=df["contract_type"].unique())
-payment_filter = st.sidebar.multiselect("Payment Method", df["payment_method"].unique(), default=df["payment_method"].unique())
+contract_filter = st.sidebar.multiselect(
+    "Contract Type",
+    df["contract_type"].unique(),
+    default=df["contract_type"].unique()
+)
+
+payment_filter = st.sidebar.multiselect(
+    "Payment Method",
+    df["payment_method"].unique(),
+    default=df["payment_method"].unique()
+)
+
 search_id = st.sidebar.text_input("Search Customer ID")
 
 df = df[
@@ -100,6 +110,12 @@ df = df[
 
 if search_id:
     df = df[df["customer_id"].astype(str).str.contains(search_id)]
+
+# ================= EMPTY DATA FIX =================
+if df.empty:
+    st.warning("No data available for selected filters. Please adjust filters.")
+
+    st.stop()   # 🔥 THIS LINE PREVENTS CRASH
 
 # ================= MODEL =================
 X = df.drop(["churn","customer_id"], axis=1)
@@ -116,14 +132,16 @@ df["Revenue_Risk"] = df["Churn_Probability"] * df["monthly_charges"]
 
 # ================= CHURN REASON =================
 def churn_reason(row):
+    reasons = []
     if row["tenure"] < 6:
-        return "New Customer Drop-off"
-    elif row["monthly_charges"] > df["monthly_charges"].mean():
-        return "High Cost Sensitivity"
-    elif row["contract_type"] == "Monthly":
-        return "Low Commitment Plan"
-    else:
-        return "Behavioral Risk"
+        reasons.append("Low tenure")
+    if row["monthly_charges"] > df["monthly_charges"].mean():
+        reasons.append("High charges")
+    if row["contract_type"] == "Monthly":
+        reasons.append("Monthly contract")
+    if row["payment_method"] == "Electronic check":
+        reasons.append("Risky payment method")
+    return ", ".join(reasons) if reasons else "Stable"
 
 df["Churn_Reason"] = df.apply(churn_reason, axis=1)
 
@@ -131,6 +149,7 @@ df["Churn_Reason"] = df.apply(churn_reason, axis=1)
 st.markdown('<div class="section">Executive Overview</div>', unsafe_allow_html=True)
 
 col1,col2,col3 = st.columns(3)
+
 col1.markdown(f"<div class='metric-card kpi-customers'><h3>Total Customers</h3><h2>{len(df)}</h2></div>", unsafe_allow_html=True)
 col2.markdown(f"<div class='metric-card kpi-churn'><h3>Avg Churn</h3><h2>{round(df['Churn_Probability'].mean(),2)}</h2></div>", unsafe_allow_html=True)
 col3.markdown(f"<div class='metric-card kpi-revenue'><h3>Revenue Risk</h3><h2>₹{int(df['Revenue_Risk'].sum())}</h2></div>", unsafe_allow_html=True)
@@ -138,46 +157,28 @@ col3.markdown(f"<div class='metric-card kpi-revenue'><h3>Revenue Risk</h3><h2>�
 # ================= AI INSIGHTS =================
 st.markdown('<div class="section">AI Insights Engine</div>', unsafe_allow_html=True)
 
-insights = [
-    f"{df.groupby('contract_type')['Revenue_Risk'].sum().idxmax()} contracts drive highest risk.",
-    f"{df.groupby('payment_method')['Revenue_Risk'].sum().idxmax()} users have highest exposure.",
-    f"Top 20% customers contribute {int((df.nlargest(int(0.2*len(df)),'Revenue_Risk')['Revenue_Risk'].sum()/df['Revenue_Risk'].sum())*100)}% risk.",
-    f"{df[df['tenure']<6].shape[0]} low-tenure customers are churn drivers."
-]
-
-for i in insights:
-    st.info(i)
+st.info(f"{df.groupby('contract_type')['Revenue_Risk'].sum().idxmax()} contracts drive highest risk.")
+st.info(f"{df.groupby('payment_method')['Revenue_Risk'].sum().idxmax()} users have highest exposure.")
+st.info(f"{df[df['tenure']<6].shape[0]} low-tenure customers are churn drivers.")
 
 # ================= ACTIONS =================
 st.markdown('<div class="section">Recommended Actions</div>', unsafe_allow_html=True)
 
-actions = [
-    f"Convert {df[(df['contract_type']=='Monthly')].shape[0]} monthly users to yearly plans.",
-    f"Improve onboarding for {df[df['tenure']<6].shape[0]} users.",
-    f"Offer retention discounts to {df[df['monthly_charges']>df['monthly_charges'].mean()].shape[0]} users.",
-    f"Immediate retention for {df[df['Churn_Probability']>0.7].shape[0]} users."
-]
-
-for a in actions:
-    st.success(a)
-
-# ================= DOWNLOAD =================
-st.markdown('<div class="section">Executive Report</div>', unsafe_allow_html=True)
-
-report = df[["customer_id","Churn_Probability","Revenue_Risk","Churn_Reason"]]
-st.download_button("Download Insights Report", report.to_csv(index=False), "churn_report.csv")
+st.success(f"Convert high-risk monthly users to yearly plans.")
+st.success(f"Improve onboarding for new customers.")
+st.success(f"Target high-paying customers with offers.")
+st.success(f"Run retention campaigns for high-risk users.")
 
 # ================= CHARTS =================
 st.markdown('<div class="section">Analytics Dashboard</div>', unsafe_allow_html=True)
 
 col4,col5 = st.columns(2)
 
-col4.plotly_chart(px.histogram(df, x="Churn_Probability", nbins=40, color_discrete_sequence=["#3b82f6"]), use_container_width=True)
+col4.plotly_chart(px.histogram(df, x="Churn_Probability", nbins=40), use_container_width=True)
 
 col5.plotly_chart(
     px.bar(df.groupby("contract_type")["Revenue_Risk"].sum().reset_index(),
-           x="contract_type", y="Revenue_Risk",
-           color="contract_type"),
+           x="contract_type", y="Revenue_Risk"),
     use_container_width=True
 )
 
@@ -185,9 +186,7 @@ col5.plotly_chart(
 st.markdown('<div class="section">Customer Intelligence Tables</div>', unsafe_allow_html=True)
 
 st.subheader("Top High Risk Customers")
-st.dataframe(df.sort_values("Revenue_Risk", ascending=False)[
-    ["customer_id","Revenue_Risk","Churn_Probability","Churn_Reason"]
-].head(10))
+st.dataframe(df.sort_values("Revenue_Risk", ascending=False).head(10))
 
 st.subheader("Full Customer Data")
 st.dataframe(df.head(100))
@@ -195,7 +194,7 @@ st.dataframe(df.head(100))
 # ================= LIVE PREDICTION =================
 st.markdown('<div class="section">Live Prediction Engine</div>', unsafe_allow_html=True)
 
-with st.form("predict"):
+with st.form("predict_form"):
     age = st.number_input("Age", 18, 80, 30)
     tenure = st.number_input("Tenure", 1, 72, 12)
     monthly = st.number_input("Monthly Charges", 100.0, 10000.0, 2000.0)
@@ -225,8 +224,8 @@ with st.form("predict"):
         prob = model.predict_proba(input_df)[0][1]
 
         if prob > 0.7:
-            st.error(f"High Risk | {round(prob,2)}")
+            st.error(f"High Risk | Probability: {round(prob,2)}")
         elif prob > 0.4:
-            st.warning(f"Medium Risk | {round(prob,2)}")
+            st.warning(f"Medium Risk | Probability: {round(prob,2)}")
         else:
-            st.success(f"Low Risk | {round(prob,2)}")
+            st.success(f"Low Risk | Probability: {round(prob,2)}")
