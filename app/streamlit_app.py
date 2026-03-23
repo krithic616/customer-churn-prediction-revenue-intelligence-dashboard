@@ -5,7 +5,7 @@ import plotly.express as px
 
 st.set_page_config(page_title="Customer Churn Intelligence", layout="wide")
 
-# ================= UI =================
+
 st.markdown("""
 <style>
 [data-testid="stAppViewContainer"] {
@@ -26,11 +26,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ================= TITLE =================
+
 st.markdown('<div class="title">Customer Churn Prediction & Revenue Intelligence Dashboard</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Predict churn, analyze revenue risk, generate insights and actions</div>', unsafe_allow_html=True)
 
-# ================= LOAD =================
+
 @st.cache_data
 def load_data():
     return pd.read_csv("data/churn_data.csv")
@@ -42,18 +42,18 @@ def load_model():
 model = load_model()
 model_columns = joblib.load("model/columns.pkl")
 
-# ================= SIDEBAR =================
+
 st.sidebar.header("Filters")
 uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
 
-# ================= DATA =================
+
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     st.success("Custom dataset loaded successfully.")
 else:
     df = load_data()
 
-# ================= DATA REQUIREMENTS + DEMO =================
+
 if uploaded_file is None:
     st.markdown("""
     <div class="data-box" style="background: linear-gradient(135deg,#3b82f6,#1e3a8a);">
@@ -77,7 +77,7 @@ if uploaded_file is None:
     </div>
     """, unsafe_allow_html=True)
 
-# ================= VALIDATION =================
+
 required_cols = ["customer_id","age","tenure","monthly_charges","contract_type","payment_method"]
 
 for col in required_cols:
@@ -88,7 +88,7 @@ for col in required_cols:
 if "churn" not in df.columns:
     df["churn"] = 0
 
-# ================= FILTERS =================
+
 contract_filter = st.sidebar.multiselect(
     "Contract Type",
     df["contract_type"].unique(),
@@ -111,13 +111,12 @@ df = df[
 if search_id:
     df = df[df["customer_id"].astype(str).str.contains(search_id)]
 
-# ================= EMPTY DATA FIX =================
+
 if df.empty:
     st.warning("No data available for selected filters. Please adjust filters.")
 
-    st.stop()   # 🔥 THIS LINE PREVENTS CRASH
+    st.stop()   
 
-# ================= MODEL =================
 X = df.drop(["churn","customer_id"], axis=1)
 X = pd.get_dummies(X)
 
@@ -130,7 +129,7 @@ X = X[model_columns]
 df["Churn_Probability"] = model.predict_proba(X)[:,1]
 df["Revenue_Risk"] = df["Churn_Probability"] * df["monthly_charges"]
 
-# ================= CHURN REASON =================
+
 def churn_reason(row):
     reasons = []
     if row["tenure"] < 6:
@@ -145,7 +144,7 @@ def churn_reason(row):
 
 df["Churn_Reason"] = df.apply(churn_reason, axis=1)
 
-# ================= KPI =================
+
 st.markdown('<div class="section">Executive Overview</div>', unsafe_allow_html=True)
 
 col1,col2,col3 = st.columns(3)
@@ -154,14 +153,14 @@ col1.markdown(f"<div class='metric-card kpi-customers'><h3>Total Customers</h3><
 col2.markdown(f"<div class='metric-card kpi-churn'><h3>Avg Churn</h3><h2>{round(df['Churn_Probability'].mean(),2)}</h2></div>", unsafe_allow_html=True)
 col3.markdown(f"<div class='metric-card kpi-revenue'><h3>Revenue Risk</h3><h2>₹{int(df['Revenue_Risk'].sum())}</h2></div>", unsafe_allow_html=True)
 
-# ================= AI INSIGHTS =================
+
 st.markdown('<div class="section">AI Insights Engine</div>', unsafe_allow_html=True)
 
 st.info(f"{df.groupby('contract_type')['Revenue_Risk'].sum().idxmax()} contracts drive highest risk.")
 st.info(f"{df.groupby('payment_method')['Revenue_Risk'].sum().idxmax()} users have highest exposure.")
 st.info(f"{df[df['tenure']<6].shape[0]} low-tenure customers are churn drivers.")
 
-# ================= ACTIONS =================
+
 st.markdown('<div class="section">Recommended Actions</div>', unsafe_allow_html=True)
 
 st.success(f"Convert high-risk monthly users to yearly plans.")
@@ -169,7 +168,7 @@ st.success(f"Improve onboarding for new customers.")
 st.success(f"Target high-paying customers with offers.")
 st.success(f"Run retention campaigns for high-risk users.")
 
-# ================= CHARTS =================
+
 st.markdown('<div class="section">Analytics Dashboard</div>', unsafe_allow_html=True)
 
 col4,col5 = st.columns(2)
@@ -182,7 +181,7 @@ col5.plotly_chart(
     use_container_width=True
 )
 
-# ================= TABLES =================
+
 st.markdown('<div class="section">Customer Intelligence Tables</div>', unsafe_allow_html=True)
 
 st.subheader("Top High Risk Customers")
@@ -191,7 +190,7 @@ st.dataframe(df.sort_values("Revenue_Risk", ascending=False).head(10))
 st.subheader("Full Customer Data")
 st.dataframe(df.head(100))
 
-# ================= LIVE PREDICTION =================
+
 st.markdown('<div class="section">Live Prediction Engine</div>', unsafe_allow_html=True)
 
 with st.form("predict_form"):
